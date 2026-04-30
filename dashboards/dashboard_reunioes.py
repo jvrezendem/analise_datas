@@ -64,9 +64,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# =========================
-# CAMINHOS DO PROJETO
-# =========================
 BASE_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = BASE_DIR / "data"
 ASSETS_DIR = BASE_DIR / "assets"
@@ -78,23 +75,11 @@ MESES = {
     7: {"nome": "Julho", "arquivo": "julho"}
 }
 
-# =========================
-# FUNCOES
-# =========================
-def identificar_coluna_dia(df):
-    possiveis_colunas_dia = [
-        "dia",
-        "dias_livres",
-        "dia_livre",
-        "data",
-        "data_livre",
-        "data_compromisso"
-    ]
 
-    for coluna in possiveis_colunas_dia:
+def identificar_coluna_dia(df):
+    for coluna in ["dia", "dias_livres", "dia_livre", "data", "data_livre", "data_compromisso"]:
         if coluna in df.columns:
             return coluna
-
     return df.columns[0]
 
 
@@ -107,11 +92,13 @@ def extrair_dia(valor):
     if texto == "":
         return pd.NA
 
-    # Quando o arquivo tem apenas o numero do dia: 1, 2, 15, 30
-    if texto.replace(".0", "").isdigit():
-        return int(float(texto))
+    numero = pd.to_numeric(texto, errors="coerce")
 
-    # Quando o arquivo tem algo como 01/05, 01/05/2026 ou 2026-05-01
+    # Se vier apenas o dia do mes, inclusive como 1.0, 2.0, 15.0 etc.
+    if pd.notna(numero) and 1 <= int(numero) <= 31:
+        return int(numero)
+
+    # Se vier uma data completa ou parcial, usa apenas o DIA dela.
     data = pd.to_datetime(texto, dayfirst=True, errors="coerce")
 
     if pd.notna(data):
@@ -134,8 +121,8 @@ def carregar_dados_mes(mes_numero):
     df = df.dropna(subset=["dia"])
     df["dia"] = df["dia"].astype(int)
 
-    # Monta a data completa a partir do arquivo do mes correspondente.
-    # Isso evita inconsistencias entre os dias livres e o grafico do mes.
+    # Monta manualmente: DIA vindo do CSV + MES do arquivo + ANO 2026.
+    # Assim o dashboard fica consistente com o grafico correspondente ao mes.
     df["data_completa"] = pd.to_datetime(
         {
             "year": ANO_DASHBOARD,
@@ -222,9 +209,6 @@ def mostrar_dias_livres(mes_numero, mes_info):
         st.markdown("</div>", unsafe_allow_html=True)
 
 
-# =========================
-# DASHBOARD
-# =========================
 st.title("📅 Dashboard de Disponibilidade para Reunioes")
 
 st.markdown(
