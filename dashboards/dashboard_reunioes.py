@@ -72,9 +72,9 @@ DATA_DIR = BASE_DIR / "data"
 ASSETS_DIR = BASE_DIR / "assets"
 
 MESES = {
-    5: "Maio",
-    6: "Junho",
-    7: "Julho"
+    5: {"nome": "Maio", "arquivo": "maio"},
+    6: {"nome": "Junho", "arquivo": "junho"},
+    7: {"nome": "Julho", "arquivo": "julho"}
 }
 
 # =========================
@@ -117,7 +117,9 @@ def carregar_dados_mes(mes_numero):
     return df
 
 
-def mostrar_dias_livres(mes_numero, mes_nome):
+def mostrar_dias_livres(mes_numero, mes_info):
+    mes_nome = mes_info["nome"]
+    mes_arquivo = mes_info["arquivo"]
     df_mes = carregar_dados_mes(mes_numero)
 
     st.markdown(f"## {mes_nome}")
@@ -168,7 +170,7 @@ def mostrar_dias_livres(mes_numero, mes_nome):
     with col2:
         st.markdown('<div class="card">', unsafe_allow_html=True)
 
-        caminho_grafico = ASSETS_DIR / f"compromissos_{mes_numero}.png"
+        caminho_grafico = ASSETS_DIR / f"compromissos_{mes_arquivo}.png"
 
         st.markdown("### Grafico de compromissos do mes")
 
@@ -178,7 +180,7 @@ def mostrar_dias_livres(mes_numero, mes_nome):
             st.markdown(
                 f"""
                 <div class="aviso">
-                    Grafico nao encontrado em: assets/compromissos_{mes_numero}.png
+                    Grafico nao encontrado em: assets/compromissos_{mes_arquivo}.png
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -201,6 +203,6 @@ st.markdown(
 
 abas = st.tabs(["Maio", "Junho", "Julho"])
 
-for aba, (mes_numero, mes_nome) in zip(abas, MESES.items()):
+for aba, (mes_numero, mes_info) in zip(abas, MESES.items()):
     with aba:
-        mostrar_dias_livres(mes_numero, mes_nome)
+        mostrar_dias_livres(mes_numero, mes_info)
