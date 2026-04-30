@@ -68,7 +68,7 @@ st.markdown(
 # CAMINHOS DO PROJETO
 # =========================
 BASE_DIR = Path(__file__).resolve().parents[1]
-DATA_PATH = BASE_DIR / "data" / "dias_livres.csv"
+DATA_DIR = BASE_DIR / "data"
 ASSETS_DIR = BASE_DIR / "assets"
 
 MESES = {
@@ -81,11 +81,13 @@ MESES = {
 # FUNCOES
 # =========================
 @st.cache_data
-def carregar_dados():
-    if not DATA_PATH.exists():
+def carregar_dados_mes(mes_numero):
+    data_path = DATA_DIR / f"dias_livres_{mes_numero}.csv"
+
+    if not data_path.exists():
         return None
 
-    df = pd.read_csv(DATA_PATH)
+    df = pd.read_csv(data_path)
 
     possiveis_colunas_data = [
         "data",
@@ -115,9 +117,8 @@ def carregar_dados():
     return df
 
 
-def mostrar_dias_livres(df, mes_numero, mes_nome):
-    df_mes = df[df["mes"] == mes_numero].copy()
-    df_mes = df_mes.sort_values("dia")
+def mostrar_dias_livres(mes_numero, mes_nome):
+    df_mes = carregar_dados_mes(mes_numero)
 
     st.markdown(f"## {mes_nome}")
 
@@ -126,7 +127,11 @@ def mostrar_dias_livres(df, mes_numero, mes_nome):
     with col1:
         st.markdown('<div class="card">', unsafe_allow_html=True)
 
-        qtd_dias = len(df_mes)
+        if df_mes is None:
+            qtd_dias = 0
+        else:
+            df_mes = df_mes.sort_values("dia")
+            qtd_dias = len(df_mes)
 
         st.markdown(
             f"""
@@ -140,7 +145,12 @@ def mostrar_dias_livres(df, mes_numero, mes_nome):
 
         st.markdown("### Datas disponiveis")
 
-        if df_mes.empty:
+        if df_mes is None:
+            st.markdown(
+                f'<div class="aviso">Arquivo nao encontrado: data/dias_livres_{mes_numero}.csv</div>',
+                unsafe_allow_html=True
+            )
+        elif df_mes.empty:
             st.markdown(
                 '<div class="aviso">Nenhum dia livre encontrado para este mes.</div>',
                 unsafe_allow_html=True
@@ -189,13 +199,8 @@ st.markdown(
     """
 )
 
-df = carregar_dados()
+abas = st.tabs(["Maio", "Junho", "Julho"])
 
-if df is None:
-    st.error("Arquivo data/dias_livres.csv nao encontrado.")
-else:
-    abas = st.tabs(["Maio", "Junho", "Julho"])
-
-    for aba, (mes_numero, mes_nome) in zip(abas, MESES.items()):
-        with aba:
-            mostrar_dias_livres(df, mes_numero, mes_nome)
+for aba, (mes_numero, mes_nome) in zip(abas, MESES.items()):
+    with aba:
+        mostrar_dias_livres(mes_numero, mes_nome)
