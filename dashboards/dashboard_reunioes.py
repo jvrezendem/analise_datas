@@ -70,6 +70,7 @@ st.markdown(
 BASE_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = BASE_DIR / "data"
 ASSETS_DIR = BASE_DIR / "assets"
+ANO_DASHBOARD = 2026
 
 MESES = {
     5: {"nome": "Maio", "arquivo": "maio"},
@@ -80,6 +81,49 @@ MESES = {
 # =========================
 # FUNCOES
 # =========================
+def normalizar_datas(df, coluna_data, mes_numero):
+    serie_original = df[coluna_data]
+
+    # Caso o CSV tenha apenas o dia do mes, por exemplo: 1, 2, 15, 30
+    if pd.api.types.is_numeric_dtype(serie_original):
+        dias = pd.to_numeric(serie_original, errors="coerce")
+        return pd.to_datetime(
+            {
+                "year": ANO_DASHBOARD,
+                "month": mes_numero,
+                "day": dias
+            },
+            errors="coerce"
+        )
+
+    serie_texto = serie_original.astype(str).str.strip()
+
+    # Caso o CSV tenha o dia como texto, por exemplo: "1", "02", "15"
+    somente_dia = serie_texto.str.fullmatch(r"\d{1,2}", na=False)
+
+    datas = pd.to_datetime(serie_texto, dayfirst=True, errors="coerce")
+
+    if somente_dia.any():
+        dias = pd.to_numeric(serie_texto.where(somente_dia), errors="coerce")
+        datas_dia = pd.to_datetime(
+            {
+                "year": ANO_DASHBOARD,
+                "month": mes_numero,
+                "day": dias
+            },
+            errors="coerce"
+        )
+        datas = datas.where(~somente_dia, datas_dia)
+
+    # Garante que qualquer data lida sem o ano correto seja exibida como 2026
+    datas = datas.apply(
+        lambda data: data.replace(year=ANO_DASHBOARD, month=mes_numero)
+        if pd.notna(data) else data
+    )
+
+    return datas
+
+
 @st.cache_data
 def carregar_dados_mes(mes_numero):
     data_path = DATA_DIR / f"dias_livres_{mes_numero}.csv"
@@ -107,7 +151,7 @@ def carregar_dados_mes(mes_numero):
     if coluna_data is None:
         coluna_data = df.columns[0]
 
-    df[coluna_data] = pd.to_datetime(df[coluna_data], errors="coerce")
+    df[coluna_data] = normalizar_datas(df, coluna_data, mes_numero)
     df = df.dropna(subset=[coluna_data])
 
     df["mes"] = df[coluna_data].dt.month
@@ -197,7 +241,7 @@ st.title("📅 Dashboard de Disponibilidade para Reunioes")
 st.markdown(
     """
     Este dashboard mostra os dias disponiveis para marcar reunioes nos meses de
-    **maio, junho e julho**, junto com o grafico de compromissos de cada mes.
+    **maio, junho e julho de 2026**, junto com o grafico de compromissos de cada mes.
     """
 )
 
