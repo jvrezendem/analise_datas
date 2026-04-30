@@ -81,47 +81,43 @@ MESES = {
 # =========================
 # FUNCOES
 # =========================
-def normalizar_datas(df, coluna_data, mes_numero):
-    serie_original = df[coluna_data]
+def identificar_coluna_dia(df):
+    possiveis_colunas_dia = [
+        "dia",
+        "dias_livres",
+        "dia_livre",
+        "data",
+        "data_livre",
+        "data_compromisso"
+    ]
 
-    # Caso o CSV tenha apenas o dia do mes, por exemplo: 1, 2, 15, 30
-    if pd.api.types.is_numeric_dtype(serie_original):
-        dias = pd.to_numeric(serie_original, errors="coerce")
-        return pd.to_datetime(
-            {
-                "year": ANO_DASHBOARD,
-                "month": mes_numero,
-                "day": dias
-            },
-            errors="coerce"
-        )
+    for coluna in possiveis_colunas_dia:
+        if coluna in df.columns:
+            return coluna
 
-    serie_texto = serie_original.astype(str).str.strip()
+    return df.columns[0]
 
-    # Caso o CSV tenha o dia como texto, por exemplo: "1", "02", "15"
-    somente_dia = serie_texto.str.fullmatch(r"\d{1,2}", na=False)
 
-    datas = pd.to_datetime(serie_texto, dayfirst=True, errors="coerce")
+def extrair_dia(valor):
+    if pd.isna(valor):
+        return pd.NA
 
-    if somente_dia.any():
-        dias = pd.to_numeric(serie_texto.where(somente_dia), errors="coerce")
-        datas_dia = pd.to_datetime(
-            {
-                "year": ANO_DASHBOARD,
-                "month": mes_numero,
-                "day": dias
-            },
-            errors="coerce"
-        )
-        datas = datas.where(~somente_dia, datas_dia)
+    texto = str(valor).strip()
 
-    # Garante que qualquer data lida sem o ano correto seja exibida como 2026
-    datas = datas.apply(
-        lambda data: data.replace(year=ANO_DASHBOARD, month=mes_numero)
-        if pd.notna(data) else data
-    )
+    if texto == "":
+        return pd.NA
 
-    return datas
+    # Quando o arquivo tem apenas o numero do dia: 1, 2, 15, 30
+    if texto.replace(".0", "").isdigit():
+        return int(float(texto))
+
+    # Quando o arquivo tem algo como 01/05, 01/05/2026 ou 2026-05-01
+    data = pd.to_datetime(texto, dayfirst=True, errors="coerce")
+
+    if pd.notna(data):
+        return data.day
+
+    return pd.NA
 
 
 @st.cache_data
@@ -132,31 +128,28 @@ def carregar_dados_mes(mes_numero):
         return None
 
     df = pd.read_csv(data_path)
+    coluna_dia = identificar_coluna_dia(df)
 
-    possiveis_colunas_data = [
-        "data",
-        "dia",
-        "data_livre",
-        "dias_livres",
-        "data_compromisso"
-    ]
+    df["dia"] = df[coluna_dia].apply(extrair_dia)
+    df = df.dropna(subset=["dia"])
+    df["dia"] = df["dia"].astype(int)
 
-    coluna_data = None
+    # Monta a data completa a partir do arquivo do mes correspondente.
+    # Isso evita inconsistencias entre os dias livres e o grafico do mes.
+    df["data_completa"] = pd.to_datetime(
+        {
+            "year": ANO_DASHBOARD,
+            "month": mes_numero,
+            "day": df["dia"]
+        },
+        errors="coerce"
+    )
 
-    for coluna in possiveis_colunas_data:
-        if coluna in df.columns:
-            coluna_data = coluna
-            break
+    df = df.dropna(subset=["data_completa"])
+    df = df.sort_values("data_completa")
 
-    if coluna_data is None:
-        coluna_data = df.columns[0]
-
-    df[coluna_data] = normalizar_datas(df, coluna_data, mes_numero)
-    df = df.dropna(subset=[coluna_data])
-
-    df["mes"] = df[coluna_data].dt.month
-    df["dia"] = df[coluna_data].dt.day
-    df["data_formatada"] = df[coluna_data].dt.strftime("%d/%m/%Y")
+    df["mes"] = mes_numero
+    df["data_formatada"] = df["data_completa"].dt.strftime("%d/%m/%Y")
 
     return df
 
@@ -173,11 +166,7 @@ def mostrar_dias_livres(mes_numero, mes_info):
     with col1:
         st.markdown('<div class="card">', unsafe_allow_html=True)
 
-        if df_mes is None:
-            qtd_dias = 0
-        else:
-            df_mes = df_mes.sort_values("dia")
-            qtd_dias = len(df_mes)
+        qtd_dias = 0 if df_mes is None else len(df_mes)
 
         st.markdown(
             f"""
