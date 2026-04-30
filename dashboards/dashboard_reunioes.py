@@ -67,7 +67,6 @@ st.markdown(
 BASE_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = BASE_DIR / "data"
 ASSETS_DIR = BASE_DIR / "assets"
-ANO_DASHBOARD = 2026
 
 MESES = {
     5: {"nome": "Maio", "arquivo": "maio"},
@@ -76,35 +75,18 @@ MESES = {
 }
 
 
-def identificar_coluna_dia(df):
-    for coluna in ["dia", "dias_livres", "dia_livre", "data", "data_livre", "data_compromisso"]:
-        if coluna in df.columns:
+def identificar_coluna_data(df):
+    # Remove colunas automaticas de indice, como Unnamed: 0.
+    colunas_validas = [
+        coluna for coluna in df.columns
+        if not str(coluna).lower().startswith("unnamed")
+    ]
+
+    for coluna in ["data", "0", "data_livre", "dias_livres", "data_compromisso"]:
+        if coluna in colunas_validas:
             return coluna
-    return df.columns[0]
 
-
-def extrair_dia(valor):
-    if pd.isna(valor):
-        return pd.NA
-
-    texto = str(valor).strip()
-
-    if texto == "":
-        return pd.NA
-
-    numero = pd.to_numeric(texto, errors="coerce")
-
-    # Se vier apenas o dia do mes, inclusive como 1.0, 2.0, 15.0 etc.
-    if pd.notna(numero) and 1 <= int(numero) <= 31:
-        return int(numero)
-
-    # Se vier uma data completa ou parcial, usa apenas o DIA dela.
-    data = pd.to_datetime(texto, dayfirst=True, errors="coerce")
-
-    if pd.notna(data):
-        return data.day
-
-    return pd.NA
+    return colunas_validas[-1] if colunas_validas else df.columns[-1]
 
 
 @st.cache_data
@@ -114,28 +96,17 @@ def carregar_dados_mes(mes_numero):
     if not data_path.exists():
         return None
 
+    # O CSV esta no formato: indice, data_completa
+    # Exemplo: 0,2026-05-02
     df = pd.read_csv(data_path)
-    coluna_dia = identificar_coluna_dia(df)
+    coluna_data = identificar_coluna_data(df)
 
-    df["dia"] = df[coluna_dia].apply(extrair_dia)
-    df = df.dropna(subset=["dia"])
-    df["dia"] = df["dia"].astype(int)
-
-    # Monta manualmente: DIA vindo do CSV + MES do arquivo + ANO 2026.
-    # Assim o dashboard fica consistente com o grafico correspondente ao mes.
-    df["data_completa"] = pd.to_datetime(
-        {
-            "year": ANO_DASHBOARD,
-            "month": mes_numero,
-            "day": df["dia"]
-        },
-        errors="coerce"
-    )
-
+    df["data_completa"] = pd.to_datetime(df[coluna_data], errors="coerce")
     df = df.dropna(subset=["data_completa"])
     df = df.sort_values("data_completa")
 
-    df["mes"] = mes_numero
+    df["mes"] = df["data_completa"].dt.month
+    df["dia"] = df["data_completa"].dt.day
     df["data_formatada"] = df["data_completa"].dt.strftime("%d/%m/%Y")
 
     return df
@@ -213,7 +184,7 @@ st.title("📅 Dashboard de Disponibilidade para Reunioes")
 
 st.markdown(
     """
-    Este dashboard mostra os dias disponiveis para marcar reunioes nos meses de
+    Este dashboard mostra as datas completas disponiveis para marcar reunioes nos meses de
     **maio, junho e julho de 2026**, junto com o grafico de compromissos de cada mes.
     """
 )
